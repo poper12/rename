@@ -9,10 +9,8 @@ from PIL import Image
 from pyrogram import Client, filters
 from pyrogram.errors import FloodWait
 from pyrogram.types import InputMediaDocument, Message
-from hachoir.metadata import extractMetadata
-from hachoir.parser import createParser
 from plugins.antinsfw import check_anti_nsfw
-from helper.utils import progress_for_pyrogram, humanbytes, convert
+from helper.utils import progress_for_pyrogram
 from helper.database import codeflixbots
 from config import Config
 
@@ -23,10 +21,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Global dictionary to track ongoing operations
+# Global dictionary to track ongoing operations (simple mutex)
 renaming_operations = {}
 
-# Enhanced regex patterns for season and episode extraction
+# --- Refined Regex Patterns for Season and Episode Extraction ---
+# Removed the overly broad 'standalone number' fallback pattern to prevent incorrect renames.
 SEASON_EPISODE_PATTERNS = [
     # Standard patterns (S01E02, S01EP02)
     (re.compile(r'S(\d+)(?:E|EP)(\d+)'), ('season', 'episode')),
@@ -36,11 +35,10 @@ SEASON_EPISODE_PATTERNS = [
     (re.compile(r'Season\s*(\d+)\s*Episode\s*(\d+)', re.IGNORECASE), ('season', 'episode')),
     # Patterns with brackets/parentheses ([S01][E02])
     (re.compile(r'\[S(\d+)\]\[E(\d+)\]'), ('season', 'episode')),
-    # Fallback patterns (S01 13, Episode 13)
+    # Fallback pattern for files like "Show.S01.13.mkv"
     (re.compile(r'S(\d+)[^\d]*(\d+)'), ('season', 'episode')),
+    # Fallback for filenames like "Show.Episode.13.mkv"
     (re.compile(r'(?:E|EP|Episode)\s*(\d+)', re.IGNORECASE), (None, 'episode')),
-    # Final fallback (standalone number)
-    (re.compile(r'\b(\d+)\b'), (None, 'episode'))
 ]
 
 # Quality detection patterns
@@ -52,6 +50,11 @@ QUALITY_PATTERNS = [
     (re.compile(r'\b(4kX264|4kx265)\b', re.IGNORECASE), lambda m: m.group(1)),
     (re.compile(r'\[(\d{3,4}[pi])\]', re.IGNORECASE), lambda m: m.group(1))  # [1080p]
 ]
+
+# --- Refactored Directory Setup ---
+# Create necessary directories once at the start of the script.
+os.makedirs(Config.DOWNLOAD_DIR, exist_ok=True)
+os.makedirs(Config.METADATA_DIR, exist_ok=True)
 
 def extract_season_episode(filename):
     """Extract season and episode numbers from filename"""
@@ -178,11 +181,21 @@ async def auto_rename_files(client, message):
             return
     renaming_operations[file_id] = datetime.now()
 
+    # Define variables for cleanup
+    download_path, metadata_path, thumb_path = None, None, None
+
     try:
         # Extract metadata from filename
         season, episode = extract_season_episode(file_name)
         quality = extract_quality(file_name)
         
+        # Check if renaming is possible before proceeding
+        if not (season or episode):
+            return await message.reply_text(
+                "Could not detect season or episode number in the filename. "
+                "Please make sure the filename follows a supported format (e.g., S01E02)."
+            )
+
         # Replace placeholders in template
         replacements = {
             '{season}': season or 'XX',
@@ -196,15 +209,12 @@ async def auto_rename_files(client, message):
         for placeholder, value in replacements.items():
             format_template = format_template.replace(placeholder, value)
 
-        # Prepare file paths
+        # Prepare file paths using configurable directories
         ext = os.path.splitext(file_name)[1] or ('.mp4' if media_type == 'video' else '.mp3')
         new_filename = f"{format_template}{ext}"
-        download_path = f"downloads/{new_filename}"
-        metadata_path = f"metadata/{new_filename}"
+        download_path = os.path.join(Config.DOWNLOAD_DIR, new_filename)
+        metadata_path = os.path.join(Config.METADATA_DIR, new_filename)
         
-        os.makedirs(os.path.dirname(download_path), exist_ok=True)
-        os.makedirs(os.path.dirname(metadata_path), exist_ok=True)
-
         # Download file
         msg = await message.reply_text("**Downloading...**")
         try:
@@ -222,21 +232,22 @@ async def auto_rename_files(client, message):
         await msg.edit("**Processing metadata...**")
         try:
             await add_metadata(file_path, metadata_path, user_id)
-            file_path = metadata_path
+            final_path = metadata_path
         except Exception as e:
-            await msg.edit(f"Metadata processing failed: {e}")
-            raise
-
+            # If metadata fails, try to proceed with the original downloaded file
+            logger.error(f"Metadata processing failed: {e}")
+            final_path = file_path
+            await msg.edit(f"Metadata processing failed. Uploading original file.")
+        
         # Prepare for upload
         await msg.edit("**Preparing upload...**")
         caption = await codeflixbots.get_caption(message.chat.id) or f"**{new_filename}**"
         thumb = await codeflixbots.get_thumbnail(message.chat.id)
-        thumb_path = None
 
         # Handle thumbnail
         if thumb:
             thumb_path = await client.download_media(thumb)
-        elif media_type == "video" and message.video.thumbs:
+        elif media_type == "video" and message.video and message.video.thumbs:
             thumb_path = await client.download_media(message.video.thumbs[0].file_id)
         
         thumb_path = await process_thumbnail(thumb_path)
@@ -253,11 +264,11 @@ async def auto_rename_files(client, message):
             }
 
             if media_type == "document":
-                await client.send_document(document=file_path, **upload_params)
+                await client.send_document(document=final_path, **upload_params)
             elif media_type == "video":
-                await client.send_video(video=file_path, **upload_params)
+                await client.send_video(video=final_path, **upload_params)
             elif media_type == "audio":
-                await client.send_audio(audio=file_path, **upload_params)
+                await client.send_audio(audio=final_path, **upload_params)
 
             await msg.delete()
         except Exception as e:
@@ -271,3 +282,4 @@ async def auto_rename_files(client, message):
         # Clean up files
         await cleanup_files(download_path, metadata_path, thumb_path)
         renaming_operations.pop(file_id, None)
+
