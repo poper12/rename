@@ -15,7 +15,7 @@ import time
 pyrogram.utils.MIN_CHANNEL_ID = -1002320905637
 
 # Setting SUPPORT_CHAT directly here
-SUPPORT_CHAT = int(os.environ.get("SUPPORT_CHAT", "-1002485667032"))
+SUPPORT_CHAT = int(os.environ.get("SUPPORT_CHAT", "-1002096791359"))
 
 PORT = Config.PORT
 
@@ -66,7 +66,7 @@ class Bot(Client):
                     ),
                     reply_markup=InlineKeyboardMarkup(
                         [[
-                            InlineKeyboardButton("ᴜᴘᴅᴀᴛᴇs", url="https://t.me/techak_support")
+                            InlineKeyboardButton("ᴜᴘᴅᴀᴛᴇs", url="https://t.me/manga_Campus_chat")
                         ]]
                     )
                 )
