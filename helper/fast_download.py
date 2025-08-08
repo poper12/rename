@@ -2,7 +2,7 @@ import aiohttp
 import time
 import os
 
-async def fast_download(client, message, file_name, progress, progress_args):
+async def fast_download(client, message, file_name, progress=None, progress_args=None):
     file = await client.get_messages(message.chat.id, message.id)
     telegram_file = await client.get_file(file.document.file_id)
     file_path = telegram_file.file_path
@@ -21,6 +21,8 @@ async def fast_download(client, message, file_name, progress, progress_args):
                     if chunk:
                         f.write(chunk)
                         downloaded += len(chunk)
-                        if progress:
-                            await progress(downloaded, file_size, progress_args[0], progress_args[1], start_time)
+                        if progress and progress_args:
+                            ud_type = progress_args[0]
+                            msg = progress_args[1]
+                            await progress(downloaded, file_size, ud_type, msg, start_time)
     return file_name
