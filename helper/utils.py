@@ -7,6 +7,8 @@ from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 last_edit_time = {}
 
 async def progress_for_pyrogram(current, total, ud_type, message, start):
+    ...
+    await message.edit(...)  # This is fine
     now = time.time()
     chat_id = message.chat.id
 
