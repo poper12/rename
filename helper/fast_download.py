@@ -1,6 +1,7 @@
 import aiohttp
 import time
 import os
+import asyncio
 
 async def fast_download(client, message, file_name, progress, progress_args):
     file = await client.get_messages(message.chat.id, message.id)
@@ -22,5 +23,7 @@ async def fast_download(client, message, file_name, progress, progress_args):
                         f.write(chunk)
                         downloaded += len(chunk)
                         if progress:
-                            await progress(downloaded, file_size, *progress_args, start=start_time)
+                            asyncio.create_task(
+                                progress(downloaded, file_size, *progress_args, start=start_time)
+                            )
     return file_name
