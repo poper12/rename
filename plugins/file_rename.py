@@ -197,7 +197,6 @@ async def auto_rename_files(client, message):
                 message,
                 file_name=download_path,
                 progress=progress_for_pyrogram,
-                await client.download_media(message, file_name=download_path)  # 512KB chunk size
                 progress_args=("Downloading...", msg, time.time())
             )
         except Exception as e:
