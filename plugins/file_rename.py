@@ -1,11 +1,4 @@
-
-# Optimized version of file_rename.py
-# Changes applied:
-# - Increased block size for faster downloads/uploads
-# - Reduced progress update frequency
-# - Cached thumbnail downloads
-# - Used asyncio.gather for parallel metadata fetching
-
+from helper.fast_download import fast_download
 import os
 import re
 import time
@@ -193,11 +186,12 @@ async def auto_rename_files(client, message):
         metadata_path = os.path.join(Config.METADATA_DIR, new_filename)
         msg = await message.reply_text("**Downloading...**")
         try:
-            file_path = await client.download_media(
+            file_path = await fast_download(
+                client,
                 message,
                 file_name=download_path,
                 progress=progress_for_pyrogram,
-                progress_args=("Downloading...", msg, time.time())
+                progress_args=("Downloading...", msg)
             )
         except Exception as e:
             await msg.edit(f"Download failed: {e}")
