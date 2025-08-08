@@ -23,7 +23,7 @@ class Database:
             file_id=None,
             caption=None,
             metadata=True,
-            metadata_code="Telegram : @Codeflix_Bots",
+            metadata_code="Telegram : @aaru_2075",
             format_template=None,
             ban_status=dict(
                 is_banned=False,
