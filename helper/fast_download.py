@@ -22,6 +22,5 @@ async def fast_download(client, message, file_name, progress, progress_args):
                         f.write(chunk)
                         downloaded += len(chunk)
                         if progress:
-                            # Call the progress coroutine directly (this is safe only if NOT a generator)
-                            await progress(downloaded, file_size, *progress_args, start=start_time)
+                            await progress(downloaded, file_size, progress_args[0], progress_args[1], start_time)
     return file_name
