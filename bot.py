@@ -15,7 +15,7 @@ import time
 pyrogram.utils.MIN_CHANNEL_ID = -1002887783820
 
 # Setting SUPPORT_CHAT directly here
-SUPPORT_CHAT = int(os.environ.get("SUPPORT_CHAT", ""))
+SUPPORT_CHAT = int(os.environ.get("SUPPORT_CHAT", "-1002681774200"))
 
 PORT = Config.PORT
 
